@@ -4,13 +4,13 @@ from __future__ import annotations
 
 import asyncio
 from datetime import timedelta
+import inspect
 import logging
 import time
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ServiceValidationError
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -48,6 +48,7 @@ from .const import (
 from .protocol import BOOL_FIELDS, CLOCK_FIELDS, FIELD_NAMES
 from .runxin.semantics import vacation_status
 from .models import allowed_write_fields, controller_model
+from .ha_compat import ServiceValidationError
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -97,13 +98,23 @@ class YpsilonDataUpdateCoordinator(DataUpdateCoordinator[dict[str, Any]]):
         self._mutation_lock = asyncio.Lock()
         self._regeneration_requested = False
 
+        coordinator_options = {
+            "logger": _LOGGER,
+            "config_entry": entry,
+            "name": DOMAIN,
+            "update_interval": timedelta(seconds=self.scan_interval),
+            "always_update": True,
+        }
+        supported_options = inspect.signature(
+            DataUpdateCoordinator.__init__
+        ).parameters
         super().__init__(
             hass,
-            logger=_LOGGER,
-            config_entry=entry,
-            name=DOMAIN,
-            update_interval=timedelta(seconds=self.scan_interval),
-            always_update=True,
+            **{
+                key: value
+                for key, value in coordinator_options.items()
+                if key in supported_options
+            },
         )
 
     @property
