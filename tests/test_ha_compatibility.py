@@ -107,6 +107,25 @@ def test_legacy_flow_units_fall_back_to_home_assistant_unit_strings():
     assert sensor.FLOW_UNITS[1] == "L/min"
 
 
+def test_entities_have_distinct_names_when_legacy_core_cannot_translate_them():
+    entity_module = load("entity")
+    name = entity_module.YpsilonEntity.name.fget
+
+    assert name(
+        SimpleNamespace(
+            _attr_name=None,
+            entity_description=SimpleNamespace(name=None, translation_key="daily_water"),
+        )
+    ) == "Daily Water"
+    assert name(SimpleNamespace(_attr_translation_key="force_regeneration")) == "Force Regeneration"
+    assert name(
+        SimpleNamespace(
+            _attr_name=None,
+            entity_description=SimpleNamespace(name="Custom label", translation_key="daily_water"),
+        )
+    ) == "Custom label"
+
+
 def test_integration_only_forwards_time_platform_when_core_provides_it():
     from homeassistant.const import Platform
 

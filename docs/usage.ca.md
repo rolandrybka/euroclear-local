@@ -10,6 +10,14 @@ Els controls depenen del [model](model-support.md). Els models 9/12/14 conserven
 
 Una dada absent no es converteix en zero. Els enums desconeguts mostren el codi decimal i `raw_code`; les etiquetes conegudes segueixen el mapa de referència i les excepcions confirmades per model.
 
+## Targeta Lovelace
+
+El repositori inclou la targeta opcional **Runxin Local** a `custom_components/ypsilon_local/www/ypsilon-local-card.js`. Mostra les mètriques seleccionades, les alarmes actives, la fase actual de la vàlvula i l’estat de vacances de només lectura. L’acció de regeneració demana confirmació abans d’utilitzar el botó existent de la integració; la sincronització del rellotge també reutilitza el seu botó. No afegeix controls de vacances ni d’avanç de fase.
+
+Copia el fitxer a `/config/www/ypsilon-local-card.js` i registra’l a **Configuració → Taulers → Recursos**, amb l’URL `/local/ypsilon-local-card.js` i el tipus **Mòdul JavaScript**. Actualitza el navegador, afegeix la targeta **Runxin Local** des del selector i tria les entitats al seu editor. Cal habilitar primer les entitats desactivades per defecte.
+
+La regeneració mou físicament la vàlvula i consumeix aigua i sal. La integració comprova l’estat del dispositiu abans d’enviar l’ordre; la confirmació de la targeta és una protecció addicional.
+
 ## Consum d’aigua i estadístiques
 
 | Entitat | Significat | Estadístiques HA |

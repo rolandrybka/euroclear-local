@@ -11,6 +11,9 @@ All notable changes to this project are documented here.
 - Fall back to the legacy config-entry-only schema when older Core lacks `config_entry_only_config_schema`.
 - Import `EntityCategory` from its legacy entity-helper location on older Core releases.
 - Import `DeviceInfo` from the legacy entity-helper location and include DHCP platform test dependencies for the minimum HA environment.
+- Provide distinct English fallback names for translated entities when older Core versions do not resolve integration entity translations.
+- Add Hungarian translations for all entity names and translated entity errors.
+- Add an optional Runxin Local Lovelace card with configurable entity selection, status, alerts and guarded regeneration/clock controls.
 
 ## [2.10.3] - 2026-10-20
 

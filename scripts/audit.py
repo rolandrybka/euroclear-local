@@ -303,7 +303,7 @@ def repository_checks() -> list[str]:
     exception_keys |= set(re.findall(r'translation_key="(\w+)"', services))
 
     names: list[tuple[str, str, str]] = []
-    for lang in ("ca", "en", "es"):
+    for lang in ("ca", "en", "es", "hu"):
         translation = json.loads(read(f"translations/{lang}.json"))
         data = translation.get("entity", {})
         if "switch" in data:

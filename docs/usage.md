@@ -10,6 +10,14 @@ Controls depend on the [controller model](model-support.md). Models 9/12/14 reta
 
 A missing reading stays unavailable/unknown; it is not fabricated as zero. Unknown enum values appear as decimal codes with `raw_code`, rather than hiding the received value. Known labels follow the reference mapping and confirmed per-model exceptions.
 
+## Lovelace dashboard card
+
+The repository includes an optional **Runxin Local** dashboard card at `custom_components/ypsilon_local/www/ypsilon-local-card.js`. It shows selected flow/water metrics, active controller alerts, the current valve phase and read-only vacation status. The regeneration action asks for confirmation before pressing the integration's existing button; clock sync uses its existing button. It does not add vacation or phase-advance controls.
+
+The card JavaScript is not automatically registered as a Home Assistant frontend resource. Copy it to `/config/www/ypsilon-local-card.js`, then add the resource under **Settings → Dashboards → Resources** with URL `/local/ypsilon-local-card.js` and resource type **JavaScript module**. Refresh the browser after saving. Add a **Runxin Local** card from the dashboard card picker and select your integration's entities in its editor. Entities disabled by default must first be enabled in the device's entity list to be selectable.
+
+The regeneration button moves the physical valve and consumes water and salt. The integration validates the current device state before sending it; the card's confirmation is an additional safeguard, not a substitute for those checks.
+
 ## Water consumption and statistics
 
 | Entity | Meaning | Home Assistant statistics |

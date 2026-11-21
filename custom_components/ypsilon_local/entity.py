@@ -24,6 +24,26 @@ class YpsilonEntity(CoordinatorEntity[YpsilonDataUpdateCoordinator]):
 
     _attr_has_entity_name = True
 
+    @property
+    def name(self) -> str | None:
+        """Provide a distinct fallback name when legacy Core lacks translations."""
+        name = getattr(self, "_attr_name", None)
+        if name is not None:
+            return name
+
+        description = getattr(self, "entity_description", None)
+        if description is not None:
+            name = getattr(description, "name", None)
+            if name is not None:
+                return name
+            translation_key = getattr(description, "translation_key", None)
+        else:
+            translation_key = getattr(self, "_attr_translation_key", None)
+
+        if translation_key is None:
+            return None
+        return " ".join(part.capitalize() for part in translation_key.split("_"))
+
     def __init__(
         self, coordinator: YpsilonDataUpdateCoordinator, entry: ConfigEntry
     ) -> None:

@@ -10,6 +10,14 @@ Los controles dependen del [modelo](model-support.md). Los modelos 9/12/14 conse
 
 Un dato ausente no se convierte en cero. Los enums desconocidos muestran el código decimal y `raw_code`; las etiquetas conocidas siguen el mapa de referencia y las excepciones confirmadas por modelo.
 
+## Tarjeta Lovelace
+
+El repositorio incluye la tarjeta opcional **Runxin Local** en `custom_components/ypsilon_local/www/ypsilon-local-card.js`. Muestra las métricas seleccionadas, las alarmas activas, la fase actual de la válvula y el estado de vacaciones de solo lectura. La acción de regeneración pide confirmación antes de usar el botón existente de la integración; la sincronización del reloj también reutiliza su botón. No añade controles de vacaciones ni de avance de fase.
+
+Copia el archivo a `/config/www/ypsilon-local-card.js` y regístralo en **Ajustes → Paneles → Recursos**, con la URL `/local/ypsilon-local-card.js` y el tipo **Módulo JavaScript**. Actualiza el navegador, añade la tarjeta **Runxin Local** desde el selector y elige las entidades en su editor. Las entidades deshabilitadas por defecto deben habilitarse primero.
+
+La regeneración mueve físicamente la válvula y consume agua y sal. La integración comprueba el estado del dispositivo antes de enviar la orden; la confirmación de la tarjeta es una protección adicional.
+
 ## Consumo de agua y estadísticas
 
 | Entidad | Significado | Estadísticas HA |
