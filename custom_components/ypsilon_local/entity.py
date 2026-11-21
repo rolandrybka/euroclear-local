@@ -7,7 +7,11 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import callback
-from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC, DeviceInfo
+from homeassistant.helpers.device_registry import CONNECTION_NETWORK_MAC
+try:
+    from homeassistant.helpers.device_registry import DeviceInfo
+except ImportError:
+    from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN, MANUFACTURER, MODEL_NAME

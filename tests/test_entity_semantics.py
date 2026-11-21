@@ -61,5 +61,5 @@ def test_phase_50_and_51_sensors_are_diagnostics_in_minutes() -> None:
 
 
 def test_legacy_flow_unit_is_liters_per_minute() -> None:
-    assert "UnitOfVolumeFlowRate.LITERS_PER_MINUTE" in SENSOR
+    assert 'getattr(UnitOfVolumeFlowRate, "LITERS_PER_MINUTE", "L/min")' in SENSOR
     assert "UnitOfVolumeFlowRate.LITERS_PER_HOUR" not in SENSOR

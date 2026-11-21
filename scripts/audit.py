@@ -268,7 +268,10 @@ def repository_checks() -> list[str]:
         errors.append("unverified direct vacation write remains in coordinator")
     if "UnitOfVolumeFlowRate.LITERS_PER_HOUR" in sensors:
         errors.append("legacy WaterDevice Lpm unit regressed to L/h")
-    if "UnitOfVolumeFlowRate.LITERS_PER_MINUTE" not in sensors:
+    if not (
+        "UnitOfVolumeFlowRate.LITERS_PER_MINUTE" in sensors
+        or 'getattr(UnitOfVolumeFlowRate, "LITERS_PER_MINUTE", "L/min")' in sensors
+    ):
         errors.append("L/min flow unit missing")
     for key in ("salt_dissolution_remaining", "pause_1_remaining"):
         m = re.search(

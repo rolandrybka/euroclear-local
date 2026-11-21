@@ -11,9 +11,9 @@ Local monitoring and control for water softeners with compatible **Runxin contro
 
 ## Requirements and compatibility
 
-- **Home Assistant 2026.10.0 or later**. For older HA releases, retain Runxin Local 2.9.3 and read the [migration guide](docs/ha-2026-10.md) before updating HA.
+- **Home Assistant 2023.2.0 or later**. Older Core releases use the legacy synchronous BroadLink library in an executor thread; newer Python runtimes use the isolated async library.
 - A reachable BroadLink **BL3372**, device type **`0x520F`**, and a supported controller model. A matching brand or MAC prefix alone does not establish compatibility.
-- Runtime dependency: `broadlink-async>=1.1.0`, installed by Home Assistant in the isolated `broadlink_async` namespace.
+- Runtime dependency: the integration declares the same `broadlink==0.18.3` version as Home Assistant 2023.2.0, without environment markers for compatibility with older requirement handling. If `broadlink_async` is available, it is selected; otherwise the legacy synchronous API runs in an executor thread.
 
 | Controller | Reported hardware | Current support |
 |---|---|---|

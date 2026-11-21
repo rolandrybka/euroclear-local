@@ -4,9 +4,9 @@
 
 ## Abans d’instal·lar
 
-Cal **Home Assistant 2026.10.0+**, un mòdul BL3372 accessible (`0x520F`) i un controlador de la [matriu de suport](model-support.md). `hacs.json` declara la versió mínima. Home Assistant instal·la `broadlink-async>=1.1.0`; no instal·lis paquets manualment al seu entorn gestionat.
+Cal **Home Assistant 2023.2.0+**, un mòdul BL3372 accessible (`0x520F`) i un controlador de la [matriu de suport](model-support.md). `hacs.json` declara la versió mínima. La integració utilitza l’API aïllada `broadlink_async` quan està disponible; altrament, fa servir `broadlink==0.18.3`, la mateixa versió que BroadLink de Core en HA 2023.2. No instal·lis paquets manualment a l’entorn gestionat de HA.
 
-Amb HA anterior, conserva Runxin Local 2.9.3. Si havies utilitzat la dependència BroadLink compartida, consulta la [migració i recuperació](ha-2026-10.ca.md).
+Amb Python antic, l’API síncrona de Core s’executa en un fil de treball; Python 3.13+ utilitza l’espai de noms aïllat `broadlink_async`. Consulta la [migració i recuperació](ha-2026-10.ca.md) per al canvi de dependències de 2026.
 
 ## Instal·lació amb HACS
 

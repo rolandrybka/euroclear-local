@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -12,13 +11,14 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import EntityCategory, UnitOfTime, UnitOfVolume, UnitOfVolumeFlowRate
+from homeassistant.const import UnitOfTime, UnitOfVolume, UnitOfVolumeFlowRate
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.typing import StateType
 
 from .const import CONF_CONTROLLER_MODEL, FLOW_RATE_SCALE_BY_UNIT, FLOW_RATE_SCALE_DEFAULT
 from .entity import YpsilonEntity
+from .ha_compat import EntityCategory, entity_description_dataclass, get_entry_runtime_data
 from .models import CONTROLLER_MODELS, ControllerModel, controller_model, resin_volume_litres
 from .runxin.semantics import (
     BRINE_DRAW_MODE_KEYS,
@@ -45,26 +45,40 @@ VOLUME_UNITS = {
 # Legacy WaterDevice labels the three flow units as gpm, Lpm and m³/h.
 # Only unit code 2 has been calibrated end-to-end on the project's hardware.
 FLOW_UNITS = {
-    0: UnitOfVolumeFlowRate.GALLONS_PER_MINUTE,
-    1: UnitOfVolumeFlowRate.LITERS_PER_MINUTE,
+    0: getattr(UnitOfVolumeFlowRate, "GALLONS_PER_MINUTE", "gal/min"),
+    1: getattr(UnitOfVolumeFlowRate, "LITERS_PER_MINUTE", "L/min"),
     2: UnitOfVolumeFlowRate.CUBIC_METERS_PER_HOUR,
 }
+FLOW_RATE_DEVICE_CLASS = getattr(SensorDeviceClass, "VOLUME_FLOW_RATE", None)
 MODEL_NAMES = {code: model.model_name for code, model in CONTROLLER_MODELS.items()}
 
 
-@dataclass(frozen=True, kw_only=True)
+@entity_description_dataclass
 class YpsilonSensorDescription(SensorEntityDescription):
     field: str
     protocol_field: str | None = None
     source: str = SOURCE_DEVICE
     unit_kind: str | None = None
     value_map: dict[int, str] | None = None
+    native_precision: int | None = None
+    suggested_display_precision: int | None = None
+
+    def __post_init__(self) -> None:
+        """Use the precision field understood by both old and current Core."""
+        precision = (
+            self.suggested_display_precision
+            if self.suggested_display_precision is not None
+            else self.native_precision
+        )
+        if precision is not None:
+            object.__setattr__(self, "native_precision", precision)
+            object.__setattr__(self, "suggested_display_precision", precision)
 
 
 SENSORS = (
     YpsilonSensorDescription(
         key="flow_rate", translation_key="flow_rate", field="flowRate", protocol_field="11",
-        unit_kind="flow", device_class=SensorDeviceClass.VOLUME_FLOW_RATE,
+        unit_kind="flow", device_class=FLOW_RATE_DEVICE_CLASS,
         state_class=SensorStateClass.MEASUREMENT, suggested_display_precision=2,
         icon="mdi:waves-arrow-right",
     ),
@@ -309,7 +323,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator = entry.runtime_data
+    coordinator = get_entry_runtime_data(hass, entry)
     async_add_entities(YpsilonSensor(coordinator, entry, desc) for desc in SENSORS)
     model = controller_model((coordinator.data or {}).get("deviceModel"))
     if model is not None and (

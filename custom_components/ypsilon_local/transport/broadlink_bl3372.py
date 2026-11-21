@@ -15,14 +15,18 @@ an independent read-back instead.
 from __future__ import annotations
 
 import logging
-import inspect
 import random
 import asyncio
+import socket
 from typing import Any
 
-import broadlink_async as broadlink
-
-from .broadlink_packet import guard_exchange, send_packet_once, PacketValidationError
+from .broadlink_packet import (
+    PacketValidationError,
+    guard_exchange,
+    send_packet_once,
+    validate_reply,
+)
+from .broadlink_compat import IS_ASYNC_BROADLINK, async_call, broadlink
 
 from ..runxin.errors import RunxinTransportError
 from .base import RunxinTransport
@@ -41,6 +45,34 @@ BROADLINK_EXCEPTIONS = (
     TimeoutError,
     PacketValidationError,
 )
+CONNECTION_CLOSED_EXCEPTIONS = tuple(
+    error
+    for error in (getattr(broadlink.exceptions, "ConnectionClosedError", None),)
+    if isinstance(error, type) and issubclass(error, Exception)
+)
+
+
+def _send_packet_once_legacy(device: Any, packet_type: int, payload: bytes) -> bytes:
+    """Send one packet through the legacy synchronous device without retries."""
+    with device.lock:
+        device.count = ((device.count + 1) | 0x8000) & 0xFFFF
+        packet = bytearray(0x38)
+        packet[:8] = bytes.fromhex("5aa5aa555aa5aa55")
+        packet[0x24:0x26] = device.devtype.to_bytes(2, "little")
+        packet[0x26:0x28] = packet_type.to_bytes(2, "little")
+        packet[0x28:0x2A] = device.count.to_bytes(2, "little")
+        packet[0x2A:0x30] = bytes(device.mac)[::-1]
+        packet[0x30:0x34] = device.id.to_bytes(4, "little")
+        packet[0x34:0x36] = (sum(payload, 0xBEAF) & 0xFFFF).to_bytes(2, "little")
+        padding = (16 - len(payload)) % 16
+        packet.extend(device.encrypt(bytes(payload) + bytes(padding)))
+        packet[0x20:0x22] = (sum(packet, 0xBEAF) & 0xFFFF).to_bytes(2, "little")
+
+        with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as connection:
+            connection.settimeout(device.timeout)
+            connection.sendto(packet, device.host)
+            response, _ = connection.recvfrom(2048)
+        return bytes(response)
 
 
 class BroadlinkOuterError(RunxinTransportError):
@@ -172,8 +204,15 @@ class BroadlinkBL3372Transport(RunxinTransport):
         device = self._device
         self._device = None
         if device is not None:
+            close = (
+                getattr(device, "aclose", None)
+                if IS_ASYNC_BROADLINK
+                else getattr(device, "close", None)
+            )
+            if not callable(close):
+                return
             try:
-                await device.aclose()
+                await async_call(close)
             except BROADLINK_EXCEPTIONS:
                 pass
 
@@ -187,13 +226,24 @@ class BroadlinkBL3372Transport(RunxinTransport):
             await self._drop_session()
 
     async def _connect(self) -> Any:
+        if not IS_ASYNC_BROADLINK:
+            return await self._connect_legacy()
         self._stage = "discovery"
         self._devtype = None
         self._is_locked = None
         _LOGGER.debug("Starting BroadLink discovery (timeout=%ss)", self.timeout)
-        if not inspect.iscoroutinefunction(broadlink.hello):
-            raise RunxinTransportError("Incompatible broadlink-async runtime; check the installed dependency")
-        device = await broadlink.hello(self.host, timeout=self.timeout)
+        device = await async_call(broadlink.hello, self.host, timeout=self.timeout)
+        return await self._initialize_device(device)
+
+    async def _connect_legacy(self) -> Any:
+        self._stage = "discovery"
+        self._devtype = None
+        self._is_locked = None
+        _LOGGER.debug("Starting legacy BroadLink discovery (timeout=%ss)", self.timeout)
+        device = await async_call(broadlink.hello, self.host, timeout=self.timeout)
+        return await self._initialize_device(device, legacy=True)
+
+    async def _initialize_device(self, device: Any, *, legacy: bool = False) -> Any:
         if device is None:
             raise RunxinTransportError("No BroadLink device found")
         self._stage = "device_type"
@@ -210,11 +260,20 @@ class BroadlinkBL3372Transport(RunxinTransport):
                 and int(device.devtype) != self.expected_devtype
             ):
                 raise BroadlinkUnsupportedDeviceError(self._devtype)
-            guard_exchange(device)
+            if legacy:
+                original_send = device.send_packet
+
+                def checked_send(packet_type: int, payload: bytes) -> bytes:
+                    response = bytes(original_send(packet_type, payload))
+                    return validate_reply(response, device, device.count)
+
+                device.send_packet = checked_send
+            else:
+                guard_exchange(device)
             device.timeout = self.timeout
             self._stage = "authentication"
             try:
-                authenticated = await device.auth()
+                authenticated = await async_call(device.auth)
             except broadlink.exceptions.AuthenticationError as err:
                 raise BroadlinkAuthenticationError(err.errno, self._is_locked) from err
             except ValueError as err:
@@ -228,7 +287,12 @@ class BroadlinkBL3372Transport(RunxinTransport):
             # Discovery created a socket but authentication did not establish
             # a reusable session. Release it before propagating the same error.
             try:
-                await device.aclose()
+                if legacy:
+                    close = getattr(device, "close", None)
+                    if callable(close):
+                        await async_call(close)
+                else:
+                    await async_call(device.aclose)
             except BROADLINK_EXCEPTIONS:
                 pass
             raise
@@ -237,7 +301,7 @@ class BroadlinkBL3372Transport(RunxinTransport):
 
         if self._firmware is None:
             try:
-                self._firmware = int(await device.get_fwversion())
+                self._firmware = int(await async_call(device.get_fwversion))
             except Exception as err:  # noqa: BLE001 - cosmetic metadata only
                 self._firmware = None
                 _LOGGER.debug(
@@ -249,10 +313,15 @@ class BroadlinkBL3372Transport(RunxinTransport):
         device = self._device or await self._connect()
         self._stage = "request"
         if write:
-            response = await send_packet_once(device, 0x6A, pack_tfb(frame))
+            if IS_ASYNC_BROADLINK:
+                response = await send_packet_once(device, 0x6A, pack_tfb(frame))
+            else:
+                response = await asyncio.to_thread(
+                    _send_packet_once_legacy, device, 0x6A, pack_tfb(frame)
+                )
         else:
-            response = await device.send_packet(0x6A, pack_tfb(frame))
-        response = bytes(response)
+            response = await async_call(device.send_packet, 0x6A, pack_tfb(frame))
+        response = validate_reply(bytes(response), device, device.count)
         self._stage = "response"
         if len(response) < 0x38:
             raise RunxinTransportError("Short BroadLink response")
@@ -285,7 +354,7 @@ class BroadlinkBL3372Transport(RunxinTransport):
         while True:
             try:
                 return await self._transact_once(frame)
-            except broadlink.exceptions.ConnectionClosedError:
+            except CONNECTION_CLOSED_EXCEPTIONS:
                 if not reauth_remaining:
                     raise
                 reauth_remaining -= 1

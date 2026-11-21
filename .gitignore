@@ -4,6 +4,7 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .venv/
+.venv-ha-minimum/
 venv/
 .env
 .DS_Store
@@ -19,3 +20,4 @@ venv/
 *.pem
 *.crt
 *.zip
+.venv-ha-minimum

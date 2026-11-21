@@ -27,7 +27,7 @@ def test_missing_path_fragment_orphan_and_translation_are_reported(tmp_path):
     (tmp_path / "README.md").write_text('[Guide](docs/guide.md#missing) [File](absent.md)')
     (tmp_path / "docs/guide.md").write_text('# Real heading')
     (tmp_path / "docs/orphan.ca.md").write_text('# Sense índex')
-    errors = '\n'.join(docs.check(tmp_path))
+    errors = '\n'.join(docs.check(tmp_path)).replace('\\', '/')
     assert 'missing target: absent.md' in errors
     assert 'missing fragment: docs/guide.md#missing' in errors
     assert 'not reachable' in errors
