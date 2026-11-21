@@ -11,9 +11,12 @@ Assistant integration today. It is intentionally separate from the F79D codec.
 - module family: BL3372
 - product controller: Runxin F79D
 - BroadLink command carrying product data: `0x6A`
-- Python dependency: `broadlink-async>=1.1.0`
+- Python <3.13: Core's synchronous `broadlink==0.19.0`, called in worker threads
+- Python >=3.13: `broadlink-async>=1.1.0` in the isolated `broadlink_async` namespace
 
-The Home Assistant integration still probes for the tested device type/model.
+The Home Assistant integration supports HA 2023.2.0+ and selects the installed
+library API. The legacy synchronous path keeps network I/O off the event loop
+and sends writes through a single-datagram adapter. It still probes for the tested device type/model.
 The transport class is parameterised so research code can test a different
 BroadLink devtype without changing the Runxin codec, but that does not make the
 new combination supported by Runxin Local.
@@ -86,4 +89,4 @@ See [`adding-a-transport.md`](adding-a-transport.md).
 
 ## Async transport: 2.10.1
 
-Home Assistant 2026.10.0+ is required. All network methods are awaited. Reads use the library’s bounded exchange, plus bounded recovery for closed endpoints and existing outer-error policies. Writes use `broadlink_packet.send_packet_once`, with one UDP datagram and no automatic command replay or reauthentication. Auth/read replies are validated on each device instance, including the framed request counter before auth changes the key. No global methods are patched. Unload, replacement and cancellation close the persistent endpoint. The adapter uses the framing/endpoint interface tested against 1.1.0; a library change requires revalidation. See [migration, recovery and hardware validation](ha-2026-10.md).
+Home Assistant 2023.2.0+ is supported. On Python <3.13, the synchronous library runs in worker threads and writes use a one-datagram adapter; on Python >=3.13, the integration uses the async namespace. Reads retain bounded session recovery, replies are validated per device and writes are never blindly replayed. Neither backend patches global methods. See [migration and recovery](ha-2026-10.md).

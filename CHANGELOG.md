@@ -2,6 +2,12 @@
 
 All notable changes to this project are documented here.
 
+## [Unreleased]
+
+- Backport Home Assistant compatibility to 2023.2.0 while retaining support for current Core releases. Select a legacy synchronous BroadLink backend on Python <3.13 and the isolated async backend on Python >=3.13; keep device I/O off the event loop and writes single-send.
+- Add compatibility paths for config-entry runtime data, translated exceptions, entity-description fields, the optional Time platform, options flows, coordinator constructor arguments and diagnostic progress flows.
+- Keep HACS and user-facing compatibility requirements aligned with the 2023.2.0 minimum; add compatibility coverage for both BroadLink runtime families.
+
 ## [2.10.3] - 2026-10-20
 
 - Abort DHCP discovery and discovery confirmation with `not_supported_device` when BroadLink reports a device type other than BL3372 (`0x520F`). Shared MAC prefixes no longer offer Runxin compatibility reports for RM remotes or SP plugs.

@@ -11,9 +11,10 @@ import pytest
 
 pytest.importorskip("homeassistant", reason="Requires requirements-test-ha.txt")
 from homeassistant import config_entries
-from homeassistant.exceptions import ServiceValidationError
 
 from .helpers import io_mock, load
+
+ServiceValidationError = load("ha_compat").ServiceValidationError
 from .test_homeassistant import hass, _entity_context, _add_sensor
 
 coordinator_mod = load("coordinator")

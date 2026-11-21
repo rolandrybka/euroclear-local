@@ -7,14 +7,16 @@ import asyncio
 from typing import Any
 from uuid import uuid4
 
-import broadlink_async as broadlink
 import voluptuous as vol
 
 from homeassistant import config_entries
 from homeassistant.const import CONF_HOST
 from homeassistant.core import callback
 from homeassistant.helpers.device_registry import format_mac
-from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
+try:
+    from homeassistant.helpers.service_info.dhcp import DhcpServiceInfo
+except ImportError:
+    from homeassistant.components.dhcp import DhcpServiceInfo
 
 from .api import (
     YpsilonAuthenticationError,
@@ -48,6 +50,8 @@ from .const import (
 from .models import controller_model, controller_protocol_name, is_supported_model
 from .compatibility import probe
 from .diagnostic_report import prepare_report, report_store
+from .ha_compat import get_entry_runtime_data
+from .broadlink_compat import broadlink
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -134,7 +138,7 @@ class YpsilonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def async_get_options_flow(
         config_entry: config_entries.ConfigEntry,
     ) -> config_entries.OptionsFlow:
-        return YpsilonLocalOptionsFlow()
+        return YpsilonLocalOptionsFlow(config_entry)
 
     async def _async_probe(self, host: str) -> tuple[dict[str, Any], str | None]:
         """Probe a temporary client and always release its BroadLink socket."""
@@ -298,9 +302,16 @@ class YpsilonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.context["diagnostic_host"] = self._diagnostic_host
         if self._diagnostic_task is None:
             self._diagnostic_task = self.hass.async_create_task(
-                self._async_collect_report(), "Runxin read-only compatibility report",
-                eager_start=False,
+                self._async_collect_report()
             )
+        if not hasattr(self, "async_show_progress"):
+            # Progress screens were added after HA 2023.2. Run the same
+            # bounded, read-only collection before presenting its result there.
+            try:
+                await self._diagnostic_task
+            except (Exception, asyncio.CancelledError):
+                return self.async_abort(reason="diagnostic_failed")
+            return await self.async_step_diagnostic_ready()
         if not self._diagnostic_task.done():
             return self.async_show_progress(
                 step_id="diagnostic_scan", progress_action="collecting_report",
@@ -372,13 +383,27 @@ class YpsilonLocalConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
 
-class YpsilonLocalOptionsFlow(config_entries.OptionsFlow):
+_OPTIONS_FLOW_BASE = getattr(
+    config_entries, "OptionsFlowWithConfigEntry", config_entries.OptionsFlow
+)
+
+
+class YpsilonLocalOptionsFlow(_OPTIONS_FLOW_BASE):
+    def __init__(self, config_entry: config_entries.ConfigEntry | None = None) -> None:
+        if hasattr(config_entries, "OptionsFlowWithConfigEntry"):
+            super().__init__(config_entry)
+        else:
+            super().__init__()
+            self.config_entry = config_entry
+
     async def async_step_init(
         self, user_input: dict[str, Any] | None = None
     ) -> config_entries.ConfigFlowResult:
         if self.config_entry.data.get(CONF_DIAGNOSTIC_ONLY):
             return self.async_abort(reason="diagnostic_only")
-        runtime = getattr(self.config_entry, "runtime_data", None)
+        runtime = get_entry_runtime_data(
+            getattr(self, "hass", None), self.config_entry
+        )
         observed = (getattr(runtime, "data", None) or {}).get("deviceModel")
         model = controller_model(self.config_entry.data.get(CONF_CONTROLLER_MODEL, observed))
         read_only = bool(model and model.read_only)

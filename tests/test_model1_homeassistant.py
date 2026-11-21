@@ -7,8 +7,9 @@ import pytest
 pytest.importorskip('homeassistant', reason='Requires requirements-test-ha.txt')
 from homeassistant import config_entries
 from homeassistant.const import Platform
-from homeassistant.exceptions import ServiceValidationError
 from .helpers import load
+
+ServiceValidationError = load('ha_compat').ServiceValidationError
 from .test_homeassistant import hass, _flow, _entity_context, _add_sensor
 from .test_control_guards import _coordinator
 from .test_model1 import reported_state

@@ -4,9 +4,9 @@
 
 ## Before installation
 
-Use **Home Assistant 2026.10.0+**, a reachable BL3372 module (`0x520F`) and a controller listed in the [support matrix](model-support.md). HACS declares the minimum HA version in `hacs.json`. Home Assistant installs `broadlink-async>=1.1.0`; do not install packages into its managed environment yourself.
+Use **Home Assistant 2023.2.0+**, a reachable BL3372 module (`0x520F`) and a controller listed in the [support matrix](model-support.md). HACS declares the minimum HA version in `hacs.json`. Home Assistant selects the compatible BroadLink dependency for its Python runtime; do not install packages into its managed environment yourself.
 
-For older HA versions, keep Runxin Local 2.9.3. Before updating an installation that used the shared BroadLink dependency, consult [migration and recovery](ha-2026-10.md).
+On older Python runtimes, the integration uses Core's legacy synchronous BroadLink library in a worker thread. On Python 3.13+, it uses the isolated `broadlink_async` namespace. Neither path requires the vendor cloud.
 
 ## HACS installation
 
@@ -42,7 +42,7 @@ Update through HACS, or replace the integration files for a manual installation,
 
 The current domain, folder and service prefix remain **`ypsilon_local`**. A future domain migration is separate work. To change a configured device's IP address, use its **Reconfigure** flow rather than creating a duplicate entry.
 
-A normal update to the isolated dependency does not itself require rebuilding Core. Already damaged BroadLink dependencies on HA 2026.10.0/1 have a separate [recovery procedure](ha-2026-10.md#upgrade-and-recovery).
+A normal update to the selected BroadLink dependency does not itself require rebuilding Core. The historical HA 2026.10 namespace migration and its recovery steps are in the [migration guide](ha-2026-10.md#upgrade-and-recovery).
 
 ## After setup
 
