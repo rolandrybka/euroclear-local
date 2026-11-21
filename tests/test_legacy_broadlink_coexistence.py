@@ -3,8 +3,10 @@ import importlib.metadata
 import inspect
 from unittest.mock import Mock
 
-import broadlink_async
 import pytest
+
+pytest.importorskip("broadlink_async")
+import broadlink_async
 
 from .test_async_broadlink import api, probe, wire
 

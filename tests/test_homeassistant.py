@@ -14,8 +14,10 @@ from types import SimpleNamespace
 from types import MappingProxyType
 from unittest.mock import AsyncMock, Mock, patch
 
-import broadlink_async as broadlink
 import pytest
+
+pytest.importorskip("broadlink_async")
+import broadlink_async as broadlink
 
 pytest.importorskip("homeassistant", reason="Requires requirements-test-ha.txt")
 import pytest_asyncio
@@ -151,7 +153,7 @@ async def test_advanced_services_cannot_use_diagnostic_entry(hass, monkeypatch):
 async def test_flow_removal_cancels_collect_task_and_signals_worker(hass):
     import asyncio
     flow=_flow(hass)
-    flow._diagnostic_task=hass.async_create_task(asyncio.sleep(10),eager_start=False)
+    flow._diagnostic_task=hass.async_create_task(asyncio.sleep(10))
     flow.async_remove()
     assert flow._diagnostic_cancel.is_set()
     with pytest.raises(asyncio.CancelledError):

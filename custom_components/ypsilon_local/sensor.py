@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.sensor import (
@@ -19,6 +18,7 @@ from homeassistant.helpers.typing import StateType
 
 from .const import CONF_CONTROLLER_MODEL, FLOW_RATE_SCALE_BY_UNIT, FLOW_RATE_SCALE_DEFAULT
 from .entity import YpsilonEntity
+from .ha_compat import entity_description_dataclass, get_entry_runtime_data
 from .models import CONTROLLER_MODELS, ControllerModel, controller_model, resin_volume_litres
 from .runxin.semantics import (
     BRINE_DRAW_MODE_KEYS,
@@ -52,13 +52,26 @@ FLOW_UNITS = {
 MODEL_NAMES = {code: model.model_name for code, model in CONTROLLER_MODELS.items()}
 
 
-@dataclass(frozen=True, kw_only=True)
+@entity_description_dataclass
 class YpsilonSensorDescription(SensorEntityDescription):
     field: str
     protocol_field: str | None = None
     source: str = SOURCE_DEVICE
     unit_kind: str | None = None
     value_map: dict[int, str] | None = None
+    native_precision: int | None = None
+    suggested_display_precision: int | None = None
+
+    def __post_init__(self) -> None:
+        """Use the precision field understood by both old and current Core."""
+        precision = (
+            self.suggested_display_precision
+            if self.suggested_display_precision is not None
+            else self.native_precision
+        )
+        if precision is not None:
+            object.__setattr__(self, "native_precision", precision)
+            object.__setattr__(self, "suggested_display_precision", precision)
 
 
 SENSORS = (
@@ -309,7 +322,7 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    coordinator = entry.runtime_data
+    coordinator = get_entry_runtime_data(hass, entry)
     async_add_entities(YpsilonSensor(coordinator, entry, desc) for desc in SENSORS)
     model = controller_model((coordinator.data or {}).get("deviceModel"))
     if model is not None and (

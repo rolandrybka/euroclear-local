@@ -10,7 +10,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, EVENT_HOMEASSISTANT_STOP, Platform
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers import device_registry as dr, entity_registry as er
-from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.device_registry import format_mac
 
 from .api import YpsilonLocalClient
@@ -20,21 +19,29 @@ from .const import (
 )
 from .diagnostic_report import DiagnosticReport, report_store
 from .coordinator import YpsilonDataUpdateCoordinator
+from .ha_compat import (
+    clear_entry_runtime_data,
+    config_entry_only_config_schema,
+    get_entry_runtime_data,
+    set_entry_runtime_data,
+)
 from .services import async_setup_services
 
 _LOGGER = logging.getLogger(__name__)
-CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+CONFIG_SCHEMA = config_entry_only_config_schema(DOMAIN)
 
 PLATFORMS: list[Platform] = [
     Platform.BINARY_SENSOR,
     Platform.BUTTON,
     Platform.NUMBER,
     Platform.SENSOR,
-    Platform.TIME,
 ]
+_TIME_PLATFORM = getattr(Platform, "TIME", None)
+if _TIME_PLATFORM is not None:
+    PLATFORMS.append(_TIME_PLATFORM)
 READ_ONLY_PLATFORMS: list[Platform] = [Platform.BINARY_SENSOR, Platform.SENSOR]
 
-type YpsilonConfigEntry = ConfigEntry[YpsilonDataUpdateCoordinator | DiagnosticReport]
+YpsilonConfigEntry = ConfigEntry
 
 
 @dataclass
@@ -228,7 +235,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: YpsilonConfigEntry) -> b
         # client/coordinator: its first refresh may automatically set the clock.
         report_id = entry.data.get(CONF_DIAGNOSTIC_REPORT_ID)
         report = await report_store(hass, report_id).async_load() if report_id else None
-        entry.runtime_data = DiagnosticReport(report)
+        set_entry_runtime_data(hass, entry, DiagnosticReport(report))
         return True
     store = await _get_store(hass, entry)
 
@@ -241,7 +248,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: YpsilonConfigEntry) -> b
         store.inactive = True
         await store.client.close()
         raise
-    entry.runtime_data = coordinator
+    set_entry_runtime_data(hass, entry, coordinator)
 
     _cleanup_legacy_entity_registry_entries(hass, entry)
     _enable_wash_start_sensor_if_integration_disabled(hass, entry)
@@ -267,7 +274,10 @@ async def async_unload_entry(hass: HomeAssistant, entry: YpsilonConfigEntry) -> 
     """Unload entities and close the persistent UDP session; retain the cache."""
     if entry.data.get(CONF_DIAGNOSTIC_ONLY):
         return True
-    unloaded = await hass.config_entries.async_unload_platforms(entry, entry.runtime_data.platforms)
+    coordinator = get_entry_runtime_data(hass, entry)
+    unloaded = await hass.config_entries.async_unload_platforms(
+        entry, coordinator.platforms
+    )
     if unloaded:
         store = hass.data.get(DOMAIN, {}).get(entry.entry_id)
         if store is not None:
@@ -283,10 +293,12 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
         report_id = entry.data.get(CONF_DIAGNOSTIC_REPORT_ID)
         if report_id:
             await report_store(hass, report_id).async_remove()
+        clear_entry_runtime_data(hass, entry)
         return
     store: YpsilonStore | None = hass.data.get(DOMAIN, {}).pop(entry.entry_id, None)
     if store is not None:
         await store.client.close()
+    clear_entry_runtime_data(hass, entry)
 
 
 async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:

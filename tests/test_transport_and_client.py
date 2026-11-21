@@ -6,8 +6,10 @@ import json
 import logging
 from unittest.mock import AsyncMock, Mock
 
-import broadlink_async as broadlink
 import pytest
+
+pytest.importorskip("broadlink_async")
+import broadlink_async as broadlink
 
 from .helpers import broadlink_reply, io_mock, load
 

@@ -6,11 +6,15 @@ import voluptuous as vol
 
 from homeassistant.config_entries import ConfigEntryState
 from homeassistant.core import HomeAssistant, ServiceCall, callback
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers.service import async_register_admin_service
 
 from .api import YpsilonConnectionError
+from .ha_compat import (
+    HomeAssistantError,
+    ServiceValidationError,
+    async_register_admin_service,
+    get_entry_runtime_data,
+)
 from .const import (
     CONF_DIAGNOSTIC_ONLY,
     DOMAIN,
@@ -62,11 +66,12 @@ def _coordinator(hass: HomeAssistant, entry_id: str):
             translation_domain=DOMAIN,
             translation_key="diagnostic_read_only",
         )
-    if entry.runtime_data.read_only:
+    coordinator = get_entry_runtime_data(hass, entry)
+    if coordinator.read_only:
         raise ServiceValidationError(
             translation_domain=DOMAIN, translation_key="model_write_not_allowed",
         )
-    return entry.runtime_data
+    return coordinator
 
 
 def _validate_raw_fields(coordinator, values: dict[int, object]) -> None:

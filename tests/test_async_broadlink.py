@@ -9,9 +9,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
+import pytest
+
+pytest.importorskip("broadlink_async")
 import broadlink_async as broadlink
 from broadlink_async import exceptions
-import pytest
 import pytest_asyncio
 
 from .helpers import broadlink_reply, load
@@ -234,8 +236,8 @@ def test_core_and_runxin_use_the_expected_library_namespace():
     assert inspect.iscoroutinefunction(broadlink.hello)
     assert inspect.iscoroutinefunction(BroadlinkDevice.async_auth)
     manifest = json.loads((Path(__file__).parents[1] / "custom_components/ypsilon_local/manifest.json").read_text())
-    assert manifest["requirements"] == ["broadlink-async>=1.1.0"]
-    assert manifest["loggers"] == ["broadlink_async"]
+    assert manifest["requirements"] == ["broadlink==0.19.0"]
+    assert manifest["loggers"] == ["broadlink", "broadlink_async"]
 
 
 @pytest.mark.asyncio

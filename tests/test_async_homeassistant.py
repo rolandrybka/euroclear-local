@@ -3,8 +3,10 @@ import asyncio
 from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
-import broadlink_async as broadlink
 import pytest
+
+pytest.importorskip("broadlink_async")
+import broadlink_async as broadlink
 
 pytest.importorskip("homeassistant")
 from homeassistant.components.broadlink.device import BroadlinkDevice

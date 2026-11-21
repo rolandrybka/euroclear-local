@@ -8,6 +8,7 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
+from .ha_compat import get_entry_runtime_data
 from .models import controller_model, model_support_details
 from .const import (
     CONF_AUTO_SYNC_CLOCK, CONF_CONTROLLER_MODEL, CONF_DIAGNOSTIC_ONLY,
@@ -94,8 +95,9 @@ async def async_get_config_entry_diagnostics(
 ) -> dict[str, Any]:
     """Return everything needed to debug a report, minus identifying data."""
     if entry.data.get(CONF_DIAGNOSTIC_ONLY):
-        return {"diagnostic_only": True, "compatibility_report": entry.runtime_data.report}
-    coordinator = entry.runtime_data
+        report = get_entry_runtime_data(hass, entry)
+        return {"diagnostic_only": True, "compatibility_report": report.report}
+    coordinator = get_entry_runtime_data(hass, entry)
     client = coordinator.client
     state = dict(coordinator.data) if coordinator.data else None
     if state and state.get("_lastPollError") is not None:

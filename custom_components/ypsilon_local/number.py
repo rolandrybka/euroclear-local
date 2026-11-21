@@ -2,23 +2,26 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 from homeassistant.components.number import NumberEntity, NumberEntityDescription, NumberMode
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory, UnitOfMass, UnitOfTime, UnitOfVolumeFlowRate
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import YpsilonConnectionError
 from .const import DOMAIN
 from .entity import YpsilonEntity
+from .ha_compat import (
+    HomeAssistantError,
+    ServiceValidationError,
+    entity_description_dataclass,
+    get_entry_runtime_data,
+)
 
 SUPPORTED_FLOW_UNIT_CODE = 2
 
 
-@dataclass(frozen=True, kw_only=True)
+@entity_description_dataclass
 class YpsilonNumberDescription(NumberEntityDescription):
     field_id: int
     field_name: str
@@ -56,7 +59,7 @@ NUMBERS = (
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    coordinator = entry.runtime_data
+    coordinator = get_entry_runtime_data(hass, entry)
     if coordinator.read_only:
         return
     allowed = coordinator.allowed_write_fields

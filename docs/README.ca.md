@@ -8,7 +8,7 @@ Lectura i control local de descalcificadors amb controladors **Runxin compatible
 
 ## Requisits i compatibilitat
 
-Cal **Home Assistant 2026.10.0+**, un BL3372 accessible (`0x520F`) i un controlador compatible. Home Assistant instal·la `broadlink-async>=1.1.0` a l’espai aïllat `broadlink_async`. Amb HA anterior, conserva Runxin Local 2.9.3 i revisa la [migració](ha-2026-10.ca.md) abans d’actualitzar HA.
+Cal **Home Assistant 2023.2.0+**, un BL3372 accessible (`0x520F`) i un controlador compatible. La integració utilitza `broadlink_async` quan està disponible; altrament, fa servir l’API BroadLink síncrona en un fil de treball. La [guia de migració](ha-2026-10.ca.md) descriu el canvi de dependències de 2026.
 
 | Controlador | Maquinari reportat | Suport actual |
 |---|---|---|
