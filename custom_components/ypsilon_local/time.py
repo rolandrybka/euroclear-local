@@ -2,23 +2,26 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 import datetime
 
 from homeassistant.components.time import TimeEntity, TimeEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .api import YpsilonConnectionError
 from .const import DOMAIN
 from .coordinator import YpsilonDataUpdateCoordinator
 from .entity import YpsilonEntity
+from .ha_compat import (
+    HomeAssistantError,
+    entity_description_dataclass,
+    get_entry_runtime_data,
+)
 
 
-@dataclass(frozen=True, kw_only=True)
+@entity_description_dataclass
 class YpsilonTimeDescription(TimeEntityDescription):
     """A writable time-of-day setting, sent as [field, hour, minute]."""
 
@@ -54,7 +57,7 @@ TIMES: tuple[YpsilonTimeDescription, ...] = (
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    coordinator = entry.runtime_data
+    coordinator = get_entry_runtime_data(hass, entry)
     if coordinator.read_only:
         return
     allowed = coordinator.allowed_write_fields

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.binary_sensor import (
@@ -16,11 +15,12 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .entity import YpsilonEntity
+from .ha_compat import entity_description_dataclass, get_entry_runtime_data
 from .runxin.semantics import SYSTEM_CLOSE_REASON_KEYS
 from .models import controller_model
 
 
-@dataclass(frozen=True, kw_only=True)
+@entity_description_dataclass
 class YpsilonBinaryDescription(BinarySensorEntityDescription):
     field: str
     protocol_field: str | None = None
@@ -85,7 +85,7 @@ BINARY_SENSORS = (
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
 ) -> None:
-    coordinator = entry.runtime_data
+    coordinator = get_entry_runtime_data(hass, entry)
     async_add_entities(YpsilonBinarySensor(coordinator, entry, desc) for desc in BINARY_SENSORS)
 
 

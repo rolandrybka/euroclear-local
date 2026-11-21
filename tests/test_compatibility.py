@@ -7,6 +7,9 @@ import asyncio
 import unittest
 from unittest.mock import AsyncMock, patch
 
+import pytest
+
+pytest.importorskip("broadlink_async")
 from broadlink_async.device import Device
 from .helpers import load
 

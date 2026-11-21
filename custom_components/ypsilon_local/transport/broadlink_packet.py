@@ -10,7 +10,9 @@ from __future__ import annotations
 import asyncio
 from typing import Any
 
-from broadlink_async import exceptions as e
+from ..broadlink_compat import broadlink
+
+e = broadlink.exceptions
 
 MAGIC = bytes.fromhex("5aa5aa555aa5aa55")
 
@@ -84,21 +86,24 @@ async def send_packet_once(device: Any, packet_type: int, payload: bytes) -> byt
         protocol.drain()
         counter = int.from_bytes(packet[0x28:0x2A], "little")
         device._recent.append(counter)
+
+        async def send_and_receive() -> bytes:
+            transport.sendto(packet)
+            while True:
+                response, _ = await protocol.queue.get()
+                if response is None:
+                    raise e.EndpointClosedError(-4013, "Endpoint closed")
+                if isinstance(response, Exception):
+                    raise response
+                # Check a full header before using its counter. A late
+                # response is not an acknowledgement for this write.
+                if len(response) >= 0x38 and int.from_bytes(response[0x28:0x2A], "little") != counter:
+                    continue
+                return validate_reply(bytes(response), device, counter)
+
         try:
-            async with asyncio.timeout(device.timeout):
-                transport.sendto(packet)
-                while True:
-                    response, _ = await protocol.queue.get()
-                    if response is None:
-                        raise e.EndpointClosedError(-4013, "Endpoint closed")
-                    if isinstance(response, Exception):
-                        raise response
-                    # Check a full header before using its counter. A late
-                    # response is not an acknowledgement for this write.
-                    if len(response) >= 0x38 and int.from_bytes(response[0x28:0x2A], "little") != counter:
-                        continue
-                    return validate_reply(bytes(response), device, counter)
-        except TimeoutError as err:
+            return await asyncio.wait_for(send_and_receive(), timeout=device.timeout)
+        except (asyncio.TimeoutError, TimeoutError) as err:
             device._drop_endpoint()
             raise e.NetworkTimeoutError(-4000, "Network timeout") from err
         except BaseException:

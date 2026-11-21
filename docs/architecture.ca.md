@@ -47,4 +47,4 @@ El model 1 té lectures Beta des de 2.10.2, amb estadístiques normals excepte r
 
 ## Cicle de vida asíncron
 
-Les operacions de xarxa són asíncrones des de la 2.10.0; la 2.10.1 utilitza `broadlink-async>=1.1.0` i bloquejos `asyncio.Lock`. L’autodiagnòstic tanca la sessió en cancel·lar-se. Descarregar l’entrada tanca el socket; recarregar crea un client nou conservant la memòria cau del camp 52. L’adaptador per dispositiu valida respostes i evita reenviaments/reautenticació interns en escriptures, sense modificar classes globals. Les API internes queden limitades a la interfície provada i cobertes amb AES real i UDP local simulat. Cal HA 2026.10.0+. [Migració](ha-2026-10.ca.md).
+El contracte del client/transport asíncron s’utilitza des de la 2.10.0. El manifest declara `broadlink==0.19.0` sense marcadors d’entorn perquè els gestors antics de requisits de HA el puguin llegir. En temps d’execució, la integració utilitza `broadlink_async` quan està disponible; altrament, l’API síncrona s’executa en fils de treball. Tots dos camins conserven la serialització d’E/S i la verificació de lectura posterior. Cal HA 2023.2.0+. [Migració](ha-2026-10.ca.md).

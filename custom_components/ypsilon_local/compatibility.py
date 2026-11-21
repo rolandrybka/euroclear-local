@@ -10,12 +10,12 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from importlib.metadata import version, PackageNotFoundError
 import logging
-import inspect
 import platform
 import asyncio
 import time
 from typing import Any
 
+from .broadlink_compat import IS_ASYNC_BROADLINK, async_call, broadlink
 from .transport.broadlink_packet import require_packet_interface, validate_reply, PacketValidationError
 
 from .models import controller_protocol_name, is_supported_model
@@ -190,33 +190,36 @@ class ReadSession:
         self.query_count = 0
         self.transient_retries = 0
         self.cancel = cancel
-        require_packet_interface(device)
-        original_exchange = device._exchange
-
-        async def checked_exchange(packet: bytes) -> bytes:
-            # 1.1.0 authentication bypasses send_packet. Validate its outbound
-            # request and reply here, before the returned session key is used.
-            if self.cancel is not None and self.cancel.is_set():
-                raise ProbeError("cancelled")
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise ProbeError("time_budget_exhausted")
-            device.timeout = min(timeout, remaining)
-            packet_type = int.from_bytes(packet[0x26:0x28], "little")
-            payload = device.decrypt(packet[0x38:])
-            if packet_type == 0x6A:
-                payload = b"\x68" if payload[:1] == b"\x68" else payload[:2 + int.from_bytes(payload[:2], "little")]
-            guard_outbound(packet_type, payload)
-            response = bytes(await original_exchange(packet))
-            try:
-                return validate_reply(response, device, int.from_bytes(packet[0x28:0x2A], "little"))
-            except PacketValidationError as err:
-                raise ProbeError(str(err)) from err
-
-        device._exchange = checked_exchange
         original_send = device.send_packet
 
-        async def checked_send(packet_type: int, payload: bytes) -> bytes:
+        if IS_ASYNC_BROADLINK:
+            require_packet_interface(device)
+            original_exchange = device._exchange
+
+            async def checked_exchange(packet: bytes) -> bytes:
+                # Async-library authentication bypasses send_packet.
+                if self.cancel is not None and self.cancel.is_set():
+                    raise ProbeError("cancelled")
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise ProbeError("time_budget_exhausted")
+                device.timeout = min(timeout, remaining)
+                packet_type = int.from_bytes(packet[0x26:0x28], "little")
+                payload = device.decrypt(packet[0x38:])
+                if packet_type == 0x6A:
+                    payload = b"\x68" if payload[:1] == b"\x68" else payload[:2 + int.from_bytes(payload[:2], "little")]
+                guard_outbound(packet_type, payload)
+                response = bytes(await original_exchange(packet))
+                try:
+                    return validate_reply(
+                        response, device, int.from_bytes(packet[0x28:0x2A], "little")
+                    )
+                except PacketValidationError as err:
+                    raise ProbeError(str(err)) from err
+
+            device._exchange = checked_exchange
+
+        def check_send_allowed(packet_type: int, payload: bytes) -> None:
             if self.cancel is not None and self.cancel.is_set():
                 raise ProbeError("cancelled")
             guard_outbound(packet_type, bytes(payload))
@@ -224,15 +227,31 @@ class ReadSession:
             if remaining <= 0:
                 raise ProbeError("time_budget_exhausted")
             device.timeout = min(timeout, remaining)
-            try:
-                response = bytes(await original_send(packet_type, payload))
-            except PacketValidationError as err:
-                raise ProbeError(str(err)) from err
-            try:
-                validate_reply(response, device, device.count)
-            except PacketValidationError as err:
-                raise ProbeError(str(err)) from err
-            return response
+
+        if IS_ASYNC_BROADLINK:
+            async def checked_send(packet_type: int, payload: bytes) -> bytes:
+                check_send_allowed(packet_type, payload)
+                try:
+                    response = bytes(await original_send(packet_type, payload))
+                except PacketValidationError as err:
+                    raise ProbeError(str(err)) from err
+                try:
+                    validate_reply(response, device, device.count)
+                except PacketValidationError as err:
+                    raise ProbeError(str(err)) from err
+                return response
+        else:
+            def checked_send(packet_type: int, payload: bytes) -> bytes:
+                check_send_allowed(packet_type, payload)
+                try:
+                    response = bytes(original_send(packet_type, payload))
+                except PacketValidationError as err:
+                    raise ProbeError(str(err)) from err
+                try:
+                    validate_reply(response, device, device.count)
+                except PacketValidationError as err:
+                    raise ProbeError(str(err)) from err
+                return response
 
         device.send_packet = checked_send
 
@@ -244,7 +263,11 @@ class ReadSession:
             if time.monotonic() >= self.deadline:
                 raise ProbeError("time_budget_exhausted")
             self.query_count += 1
-            response = await self.device.send_packet(0x6A, len(request).to_bytes(2, "little") + request)
+            response = await async_call(
+                self.device.send_packet,
+                0x6A,
+                len(request).to_bytes(2, "little") + request,
+            )
             code = int.from_bytes(response[0x22:0x24], "little", signed=True)
             if code == -5 and attempt == 0:
                 self.transient_retries += 1
@@ -387,19 +410,19 @@ async def probe(host: str, *, timeout: float = 5, max_seconds: float = 180,
     }
     device = None
     try:
+        distribution = "broadlink-async" if IS_ASYNC_BROADLINK else "broadlink"
+        report["broadlink_distribution"] = distribution
         try:
-            report["broadlink_distribution"] = "broadlink-async"
-            report["broadlink_version"] = version("broadlink-async")
+            report["broadlink_version"] = version(distribution)
         except PackageNotFoundError:
-            raise ProbeError("broadlink_async_1_1_0_required") from None
-        import broadlink_async as broadlink
-        if not inspect.iscoroutinefunction(broadlink.hello):
-            raise ProbeError("broadlink_async_runtime_unavailable")
+            raise ProbeError("broadlink_distribution_unavailable") from None
         if cancel is not None and cancel.is_set():
             raise ProbeError("cancelled")
         deadline = time.monotonic() + max_seconds
         _LOGGER.debug("Discovering BroadLink device...")
-        device = await broadlink.hello(host, timeout=min(timeout, max_seconds))
+        device = await async_call(
+            broadlink.hello, host, timeout=min(timeout, max_seconds)
+        )
         if device is None:
             raise ProbeError("no_device_found")
         locked = getattr(device, "is_locked", None)
@@ -413,7 +436,7 @@ async def probe(host: str, *, timeout: float = 5, max_seconds: float = 180,
         report["authentication"] = {"attempted": True, "ok": False}
         _LOGGER.debug("Performing standard authentication...")
         try:
-            if await device.auth() is False:
+            if await async_call(device.auth) is False:
                 raise ProbeError("authentication_rejected")
         except Exception as err:
             report["authentication"].update(error=safe_error(err))
@@ -422,7 +445,9 @@ async def probe(host: str, *, timeout: float = 5, max_seconds: float = 180,
         report["authentication"]["ok"] = True
         report["firmware"] = {"attempted": True, "ok": False}
         try:
-            report["firmware"].update(ok=True, version=int(await device.get_fwversion()))
+            report["firmware"].update(
+                ok=True, version=int(await async_call(device.get_fwversion))
+            )
         except Exception as err:
             report["firmware"]["error"] = safe_error(err)
         await scan_fields(session, report)
@@ -436,7 +461,12 @@ async def probe(host: str, *, timeout: float = 5, max_seconds: float = 180,
         report["finished_at_utc"] = utc_now()
         if device is not None:
             try:
-                await device.aclose()
+                if IS_ASYNC_BROADLINK:
+                    await async_call(device.aclose)
+                else:
+                    close = getattr(device, "close", None)
+                    if callable(close):
+                        await async_call(close)
             except Exception:
                 pass
     code = report.get("identity", {}).get("device_model_code")
@@ -446,4 +476,3 @@ async def probe(host: str, *, timeout: float = 5, max_seconds: float = 180,
         "name_source": "WaterDevice DeviceProtocolModel enumeration, checked 2026-10-07; descriptive only",
     }
     return report
-
